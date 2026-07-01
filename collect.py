@@ -131,7 +131,70 @@ def fetch_nipa():
     return out[:15]
 
 
-def fetch_kobaco_etc_rss():
+def fetch_rapa():
+    """한국전파진흥협회(RAPA) 공지사항·입찰공고 — 방송·미디어 특화"""
+    out = []
+    urls = [
+        ("RAPA 공지", "https://www.rapa.or.kr/ft/ny/bd04/list.do?boardCd=bd04&schEtc04=rapa"),
+        ("RAPA 입찰", "https://www.rapa.or.kr/ft/ny/bd05/list.do?boardCd=bd05&schEtc04=rapa"),
+    ]
+    for label, url in urls:
+        try:
+            r = requests.get(url, headers=UA, timeout=TIMEOUT)
+            soup = BeautifulSoup(r.text, "html.parser")
+            for a in soup.select("a"):
+                t = clean(a.get_text())
+                href = a.get("href", "")
+                if len(t) > 8 and matches(t) and ("view" in href or "boardSeq" in href):
+                    out.append((label, t, urljoin(url, href), ""))
+        except Exception as e:
+            out.append((label, f"⚠️ {e}", "", ""))
+    return out[:15]
+
+
+def fetch_ebs():
+    """EBS 제작 공모·사업 공고 (방송사 중 유일하게 관련 있음)"""
+    out = []
+    # EBS 공식 사이트 공모/알림 게시판 + 검색 백업
+    urls = [
+        ("EBS", "https://www.ebs.co.kr/about/notice"),
+    ]
+    for label, url in urls:
+        try:
+            r = requests.get(url, headers=UA, timeout=TIMEOUT)
+            soup = BeautifulSoup(r.text, "html.parser")
+            for a in soup.select("a"):
+                t = clean(a.get_text())
+                href = a.get("href", "")
+                # 공모/제작지원/협력 키워드가 있는 것만 (편성·채용 노이즈 제외)
+                if len(t) > 8 and matches(t) and any(
+                    k in t for k in ["공모", "모집", "제작", "지원", "협력", "선정"]
+                ):
+                    out.append((label, t, urljoin(url, href), ""))
+        except Exception as e:
+            out.append((label, f"⚠️ {e}", "", ""))
+    return out[:10]
+
+
+def fetch_gov_portal():
+    """정부·지자체 통합 — 기업마당은 이미 전국 지자체 공고를 통합 제공.
+    여기에 정부24 공모전 등 추가 통합 소스를 얹는다."""
+    out = []
+    feeds = [
+        # 온통청년 등 통합 포털 RSS가 있으면 추가. 현재는 기업마당 보조.
+        "https://www.bizinfo.go.kr/web/lay1/program/S1T122C128/rss/rssList.do",
+    ]
+    for f in feeds:
+        try:
+            d = feedparser.parse(f)
+            for e in d.entries[:40]:
+                t = clean(e.get("title", ""))
+                summ = clean(e.get("summary", ""))
+                if matches(t + " " + summ):
+                    out.append(("정부·지자체", t, e.get("link", ""), ""))
+        except Exception:
+            pass
+    return out[:15]
     """bizinfo(기업마당) 등 RSS 제공처 — AI/콘텐츠 키워드 필터"""
     out = []
     feeds = [
@@ -220,12 +283,6 @@ def send_email(html_body):
 
     to = os.environ.get("MAIL_TO", sender)
 
-    # 진단용: 실제 사용되는 값 확인 (비밀번호는 찍지 않음)
-    print(f"[진단] host={host!r} port={port}")
-    print(f"[진단] user(로그인)={user!r}")
-    print(f"[진단] sender(발신자)={sender!r}")
-    print(f"[진단] to(수신자)={to!r}")
-
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🤖 AI 콘텐츠 지원사업 브리핑 — {TODAY}"
     # 한글 표시이름은 반드시 인코딩. 발신 주소는 순수 이메일만.
@@ -250,7 +307,9 @@ def send_email(html_body):
 def main():
     sections = {
         "🇰🇷 한국 — 콘진원/공식 API": fetch_kocca_api(),
-        "🇰🇷 한국 — 기관 게시판": fetch_kocca_board() + fetch_nipa() + fetch_kobaco_etc_rss(),
+        "🇰🇷 한국 — 기관 게시판": fetch_kocca_board() + fetch_nipa(),
+        "📡 방송·미디어 — RAPA/EBS": fetch_rapa() + fetch_ebs(),
+        "🏛️ 정부·지자체 통합": fetch_gov_portal(),
         "🌍 글로벌 — AI/미디어아트": fetch_global_rss(),
     }
 
