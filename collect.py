@@ -210,14 +210,21 @@ def send_email(html_body):
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🤖 AI 콘텐츠 지원사업 브리핑 — {TODAY}"
-    msg["From"] = user
+    msg["From"] = f"AI 지원사업 봇 <{user}>"
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    with smtplib.SMTP(host, port) as s:
-        s.starttls()
-        s.login(user, pw)
-        s.sendmail(user, [x.strip() for x in to.split(",")], msg.as_string())
+    recipients = [x.strip() for x in to.split(",") if x.strip()]
+    if port == 465:
+        # SSL 방식 (네이버가 STARTTLS를 거부할 때 대비)
+        with smtplib.SMTP_SSL(host, port) as s:
+            s.login(user, pw)
+            s.sendmail(user, recipients, msg.as_string())
+    else:
+        with smtplib.SMTP(host, port) as s:
+            s.starttls()
+            s.login(user, pw)
+            s.sendmail(user, recipients, msg.as_string())
     print(f"메일 발송 완료 → {to}")
 
 
