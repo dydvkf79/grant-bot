@@ -206,11 +206,21 @@ def send_email(html_body):
     port = int(os.environ.get("SMTP_PORT", "587"))
     user = os.environ["SMTP_USER"]
     pw = os.environ["SMTP_PASS"]
-    to = os.environ.get("MAIL_TO", user)
+
+    # 발신자 주소는 반드시 완전한 이메일이어야 함(RFC-5322).
+    # SMTP_USER에 아이디만 들어와도 자동으로 @도메인을 붙인다.
+    if "@" in user:
+        sender = user
+    else:
+        # 호스트가 smtp.naver.com 이면 도메인은 naver.com
+        domain = host.split(".", 1)[1] if host.startswith("smtp.") else host
+        sender = f"{user}@{domain}"
+
+    to = os.environ.get("MAIL_TO", sender)
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🤖 AI 콘텐츠 지원사업 브리핑 — {TODAY}"
-    msg["From"] = f"AI 지원사업 봇 <{user}>"
+    msg["From"] = f"AI 지원사업 봇 <{sender}>"
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
@@ -219,12 +229,12 @@ def send_email(html_body):
         # SSL 방식 (네이버가 STARTTLS를 거부할 때 대비)
         with smtplib.SMTP_SSL(host, port) as s:
             s.login(user, pw)
-            s.sendmail(user, recipients, msg.as_string())
+            s.sendmail(sender, recipients, msg.as_string())
     else:
         with smtplib.SMTP(host, port) as s:
             s.starttls()
             s.login(user, pw)
-            s.sendmail(user, recipients, msg.as_string())
+            s.sendmail(sender, recipients, msg.as_string())
     print(f"메일 발송 완료 → {to}")
 
 
