@@ -17,6 +17,8 @@ import smtplib
 import datetime as dt
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
+from email.header import Header
 from urllib.parse import urljoin
 
 import requests
@@ -202,10 +204,10 @@ def build_html(sections):
 
 
 def send_email(html_body):
-    host = os.environ["SMTP_HOST"]
-    port = int(os.environ.get("SMTP_PORT", "587"))
-    user = os.environ["SMTP_USER"]
-    pw = os.environ["SMTP_PASS"]
+    host = os.environ["SMTP_HOST"].strip()
+    port = int(os.environ.get("SMTP_PORT", "587").strip())
+    user = os.environ["SMTP_USER"].strip()
+    pw = os.environ["SMTP_PASS"].strip()
 
     # 발신자 주소는 반드시 완전한 이메일이어야 함(RFC-5322).
     # SMTP_USER에 아이디만 들어와도 자동으로 @도메인을 붙인다.
@@ -218,9 +220,16 @@ def send_email(html_body):
 
     to = os.environ.get("MAIL_TO", sender)
 
+    # 진단용: 실제 사용되는 값 확인 (비밀번호는 찍지 않음)
+    print(f"[진단] host={host!r} port={port}")
+    print(f"[진단] user(로그인)={user!r}")
+    print(f"[진단] sender(발신자)={sender!r}")
+    print(f"[진단] to(수신자)={to!r}")
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🤖 AI 콘텐츠 지원사업 브리핑 — {TODAY}"
-    msg["From"] = f"AI 지원사업 봇 <{sender}>"
+    # 한글 표시이름은 반드시 인코딩. 발신 주소는 순수 이메일만.
+    msg["From"] = formataddr((str(Header("AI 지원사업 봇", "utf-8")), sender))
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
